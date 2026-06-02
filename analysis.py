@@ -40,4 +40,28 @@ for key, value in critical_values.items():
 print("}")
 print("選ばれた情報量基準値:", adf_result[5])
 
+# STL
+import matplotlib.pyplot as plt
+from statsmodels.tsa.seasonal import STL
+
+y = df["OT"].asfreq("15min") # 15分間隔に統一されたオブジェクトとを返す
+y = y.interpolate(method="time", limit_direction="both") # asfreqで保管したNaN行を前後から推測して埋める
+
+# STLクラス（インスタンスを作るだけ)
+stl = STL( 
+        y,
+        period=96,
+        seasonal=13, # 近傍幅
+        trend=None, # トレンド周期を自動判定
+        robust=True # 大きな差異を持つ値の重みを小さくする
+)
+
+stl_result = stl.fit() # Tt + St + Rtに分解
+trend = stl_result.trend # 長期トレンド
+seasonal = stl_result.seasonal # # 周期変動
+resid = stl_result.resid # 残差（ノイズ）
+
+fig = stl_result.plot() # グラフ作成(メモリ上)
+fig.set_size_inches(12,8) # グラフのサイズを設定
+plt.show() # 画面に描画
 
