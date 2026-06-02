@@ -124,6 +124,55 @@ minmax = MinMaxScaler(feature_range=(0, 1))
 standard = StandardScaler()
 
 print("\nMinMax: ", minmax.fit_transform(x).ravel())
-print("Standard: ", standard.fit_transform(x).ravel()) #　外れ値が存在しても、間隔は担保している
+print("Standard: ", standard.fit_transform(x).ravel()) #　標準化は外れ値が存在しても、間隔は担保している
 
+
+# テンソル
+def make_sliding_windows_numpy(
+    data: np.ndarray, # 全サンプルデータ
+    target: np.ndarray, # 予測対象
+    input_length: int, # AR(p)のp
+    forecast_horizon: int # 何ステップ予測するか
+) -> tuple[np.ndarray, np.ndarray]:
+    x_list = [] # 行
+    y_list = [] # 列
+    total_length = len(data)
+    max_start = total_length - input_length - forecast_horizon + 1
+
+    # 一回のループである時間t, t-1, t-2 × 説明変数 の行列ができる
+    for start_idx in range(max_start):
+        end_idx = start_idx + input_length
+        target_end_idx = end_idx + forecast_horizon
+        x_window = data[start_idx:end_idx, :] # 左側: a:bでa~bまでの行, 右側: :ですべての列
+        y_window = target[end_idx:target_end_idx]
+        x_list.append(x_window)
+        y_list.append(y_window)
+
+    # この時点でx_listはp × 特徴量の行列の配列のなっている
+    x = np.stack(x_list, axis=0) # stackはテンソルにし、[ループ数, 行, 列]でアクセスできる
+    y = np.stack(y_list, axis=0)
+    return x, y
+
+input_length = 96
+forecast_horizon = 24
+
+scaler = StandardScaler()
+values_scaled = scaler.fit_transform(df[feature_cols].values)
+target_values = df[target_col].values
+
+x_np, y_np = make_sliding_windows_numpy(
+    data=values_scaled,
+    target=target_values,
+    input_length=input_length,
+    forecast_horizon=forecast_horizon
+)
+
+print("\nx_np shalpe: ", x_np.shape)
+print("y_np shalpe: ", y_np.shape)
+print("一回目, 2行目, 4列目: ", x_np[0, 1, 4]) 
+
+"""
+pytorchによるテンソル化
+
+"""
 
