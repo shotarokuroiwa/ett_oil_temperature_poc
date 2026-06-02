@@ -41,7 +41,7 @@ print("}")
 print("選ばれた情報量基準値:", adf_result[5])
 
 # STL
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt # グラフ描画ライブラリ
 from statsmodels.tsa.seasonal import STL
 
 y = df["OT"].asfreq("15min") # 15分間隔に統一されたオブジェクトとを返す
@@ -64,4 +64,34 @@ resid = stl_result.resid # 残差（ノイズ）
 fig = stl_result.plot() # グラフ作成(メモリ上)
 fig.set_size_inches(12,8) # グラフのサイズを設定
 plt.show() # 画面に描画
+
+#残差チェック
+resid_check = y - trend - seasonal
+print(np.nanmean(np.abs(resid_check - resid)))
+
+# ACF
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(14,8)) # fig = 部全体のオブジェクト, axes =　二つのグラフの配列
+
+plot_acf(
+    df["OT"].dropna(),
+    lags=192, # 一周先(TtとTt-s)のデータに回帰性がないか
+    alpha=0.05, # 有意水準
+    ax=axes[0], #描画先
+    title="ACF of OT"
+)
+
+plot_pacf(
+    df["OT"],
+    lags=192,
+    alpha=0.05,
+    method="ywm",
+    ax=axes[1],
+    title="PACF of OT"
+)
+
+plt.tight_layout()
+plt.show()
+
 
