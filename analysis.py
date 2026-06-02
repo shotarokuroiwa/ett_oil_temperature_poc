@@ -3,7 +3,7 @@ import numpy as np
 
 path = "./data/ETTm1.csv"
 
-df = pd.read_csv(path, parse_dates=["date"]) # csvファイルを読み込む
+df = pd.read_csv(path, parse_dates=["date"]) # csvファイルを読み込む (オブジェクトを返す)
 df = df.sort_values("date").reset_index(drop=True) # 古い順に並び変える
 df = df.set_index("date") # data列をindexに指定、dateベースで操作する
 
@@ -157,7 +157,7 @@ input_length = 96
 forecast_horizon = 24
 
 scaler = StandardScaler()
-values_scaled = scaler.fit_transform(df[feature_cols].values)
+values_scaled = scaler.fit_transform(df[feature_cols].values) # .values = 見出しを取り除いて、純粋は配列だけを返す
 target_values = df[target_col].values
 
 x_np, y_np = make_sliding_windows_numpy(
@@ -167,7 +167,7 @@ x_np, y_np = make_sliding_windows_numpy(
     forecast_horizon=forecast_horizon
 )
 
-print("\nx_np shalpe: ", x_np.shape)
+print("\nx_np shalpe: ", x_np.shape) # .shape = テンソルの大きさを[z, x, y]で出力
 print("y_np shalpe: ", y_np.shape)
 print("一回目, 2行目, 4列目: ", x_np[0, 1, 4]) 
 
@@ -176,3 +176,39 @@ pytorchによるテンソル化
 
 """
 
+# ラグ特徴量(sarimaxのように時系列をから推測するモデル用に配列を整形)
+df_feat = df.copy()
+lag_step = [1, 2] # AR(2)
+for i in lag_step:
+    df_feat[f"OT_lag_{i}"] = df_feat["OT"].shift(i) # .shift = OT列のi個前の値そのものを取ってくる
+
+# 差分特徴量
+dif_steps = [1, 4, 96]
+ot_history = df_feat["OT"].shift(1)
+for step in dif_steps:
+    df_feat[f"OT_diff_{step}"] = ot_history.diff(periods=step) # .diff = step個前の値との差分をとる
+
+# 移動平均特徴量
+rolling_windows = [4, 16, 96]
+ot_history = df_feat["OT"].shift(1)
+for window in rolling_windows:
+    # rolling() = windowの数だけ今いる行の上から値をそのまま持ってくる　複数行持ってくる.shift()
+    df_feat[f"OT_rooll_mean_{window}"] = ot_history.rolling(window=window, min_periods=window).mean() # mena() = 平均
+    df_feat[f"OT_rooll_std_{window}"] = ot_history.rolling(window=window, min_periods=window).std() # std() = 標準偏差
+
+print("\n",df_feat.head(20))
+
+# 時間をラジアンに変換
+df["minute"] = df.index.minute
+df["hour"] = df.index.hour
+df["dayofweek"] = df.index.dayofweek
+
+total_munutes = df.index.hour * 60 + df.index.minute
+df["minute_sin"] = np.sin(2.0 * np.pi * df["minute"] / 60.0) # sinとconに分けるベクトルを一マスに入れれないから
+df["minute_cos"] = np.cos(2.0 * np.pi * df["minute"] / 60.0)
+df["hour_sin"] = np.sin(2.0 * np.pi * total_munutes / 1440.0)
+df["hour_cos"] = np.cos(2.0 * np.pi * total_munutes / 1440.0)
+df["dayofweek_sin"] = np.sin(2.0 * np.pi * df["dayofweek"] / 7.0)
+df["dayofweek_cos"] = np.cos(2.0 * np.pi * df["dayofweek"] / 7.0)
+
+print(df.head(30))
