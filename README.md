@@ -20,3 +20,21 @@
 
 ### 【実測値と予測値の比較プロット】
 ![Actual vs Predicted](./photo/compare_measuredvalues_and_predictedvalues.png)
+
+## 4. 環境構築と実行手順
+
+```bash
+# 1. 仮想環境の作成
+python -m venv .venv
+
+# 2. 仮想環境のアクティベート
+# Windows (PowerShell) の場合
+PowerShell -ExecutionPolicy Bypass -File .venv\Scripts\Activate.ps1
+# Mac / Linux の場合
+source .venv/bin/activate
+
+# 3. ライブラリのインストール
+pip install -r requirements.txt
+
+# 4. スクリプトの実行
+python analysis.py
