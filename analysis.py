@@ -175,123 +175,193 @@ from statsmodels.tsa.stattools import adfuller
 # pytorchによるテンソル化
 #
 # """
-#
-# # ラグ特徴量(sarimaxのように時系列をから推測するモデル用に配列を整形)
-# df_feat = df.copy()
-# lag_step = [1, 2] # AR(2)
-# for i in lag_step:
-#     df_feat[f"OT_lag_{i}"] = df_feat["OT"].shift(i) # .shift = OT列のi個前の値そのものを取ってくる
-#
-# # 差分特徴量
-# dif_steps = [1, 4, 96]
-# ot_history = df_feat["OT"].shift(1)
-# for step in dif_steps:
-#     df_feat[f"OT_diff_{step}"] = ot_history.diff(periods=step) # .diff = step個前の値との差分をとる
-#
-# # 移動平均特徴量
-# rolling_windows = [4, 16, 96]
-# ot_history = df_feat["OT"].shift(1)
-# for window in rolling_windows:
-#     # rolling() = windowの数だけ今いる行の上から値をそのまま持ってくる　複数行持ってくる.shift()
-#     df_feat[f"OT_rooll_mean_{window}"] = ot_history.rolling(window=window, min_periods=window).mean() # mena() = 平均
-#     df_feat[f"OT_rooll_std_{window}"] = ot_history.rolling(window=window, min_periods=window).std() # std() = 標準偏差
-#
+
+# ラグ特徴量(sarimaxのように時系列をから推測するモデル用に配列を整形)
+df_feat = df.copy()
+lag_step = [1, 2] # AR(2)
+for i in lag_step:
+    df_feat[f"OT_lag_{i}"] = df_feat["OT"].shift(i) # .shift = OT列のi個前の値そのものを取ってくる
+
+# 差分特徴量
+dif_steps = [1, 4, 96]
+ot_history = df_feat["OT"].shift(1)
+for step in dif_steps:
+    df_feat[f"OT_diff_{step}"] = ot_history.diff(periods=step) # .diff = step個前の値との差分をとる
+
+# 移動平均特徴量
+rolling_windows = [4, 16, 96]
+ot_history = df_feat["OT"].shift(1)
+for window in rolling_windows:
+    # rolling() = windowの数だけ今いる行の上から値をそのまま持ってくる　複数行持ってくる.shift()
+    df_feat[f"OT_rooll_mean_{window}"] = ot_history.rolling(window=window, min_periods=window).mean() # mena() = 平均
+    df_feat[f"OT_rooll_std_{window}"] = ot_history.rolling(window=window, min_periods=window).std() # std() = 標準偏差
+
 # print("\n",df_feat.head(20))
-#
-# # 周期特徴量(時間をラジアンに変換)
-# df["minute"] = df.index.minute
-# df["hour"] = df.index.hour
-# df["dayofweek"] = df.index.dayofweek
-#
-# total_munutes = df.index.hour * 60 + df.index.minute
-# df["minute_sin"] = np.sin(2.0 * np.pi * df["minute"] / 60.0) # sinとconに分けるベクトルを一マスに入れれないから
-# df["minute_cos"] = np.cos(2.0 * np.pi * df["minute"] / 60.0)
-# df["hour_sin"] = np.sin(2.0 * np.pi * total_munutes / 1440.0)
-# df["hour_cos"] = np.cos(2.0 * np.pi * total_munutes / 1440.0)
-# df["dayofweek_sin"] = np.sin(2.0 * np.pi * df["dayofweek"] / 7.0)
-# df["dayofweek_cos"] = np.cos(2.0 * np.pi * df["dayofweek"] / 7.0)
-#
+
+# 周期特徴量(時間をラジアンに変換)
+df["minute"] = df.index.minute
+df["hour"] = df.index.hour
+df["dayofweek"] = df.index.dayofweek
+
+total_munutes = df.index.hour * 60 + df.index.minute
+df["minute_sin"] = np.sin(2.0 * np.pi * df["minute"] / 60.0) # sinとconに分けるベクトルを一マスに入れれないから
+df["minute_cos"] = np.cos(2.0 * np.pi * df["minute"] / 60.0)
+df["hour_sin"] = np.sin(2.0 * np.pi * total_munutes / 1440.0)
+df["hour_cos"] = np.cos(2.0 * np.pi * total_munutes / 1440.0)
+df["dayofweek_sin"] = np.sin(2.0 * np.pi * df["dayofweek"] / 7.0)
+df["dayofweek_cos"] = np.cos(2.0 * np.pi * df["dayofweek"] / 7.0)
+
 # print(df.head(30))
-#
+
 """
 SARIMAX
 """
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from statsmodels.tsa.stattools import acf, pacf
+# from statsmodels.tsa.statespace.sarimax import SARIMAX
+# from statsmodels.tsa.stattools import acf, pacf
+#
+# def estimate_d_by_adf(series: pd.Series, max_d: int = 2, alpha: float = 0.05) -> int:
+#     current = series.dropna()
+#     for d in range(max_d + 1):
+#         result = adfuller(current, maxlag=None, regression="c", autolag="AIC")
+#         p_value = result[1]
+#         print(f"d={d}, p-value={p_value}")
+#         if p_value < alpha:
+#             return d
+#         current = current.diff().dropna()
+#     return max_d
+#
+# # (1 - L)ᵈ
+# d = estimate_d_by_adf(df["OT"], max_d=2, alpha=0.05) # 何回変化量をとったか(定常になるまで)
+# s = 96
+#
+# # (1 - L⁹⁶)ᵒ
+# seasonal_diff = df["OT"].diff(periods=s).dropna() # diff() = 一周期前のデータを引くと季節やトレンドの波を消える
+# seasonal_p_value = adfuller(seasonal_diff, maxlag=None, regression="c", autolag="AIC")[1] # p値
+# D = 1 if seasonal_p_value < 0.05 else 0
+#
+# # 定常化
+# stationary_data = df["OT"].copy() 
+# for _ in range(d):
+#     stationary_data = stationary_data.diff()
+# stationary_data = stationary_data.dropna() # 空白の行を削除
+#
+# # acf, pacf
+# acf_values = acf(stationary_data, nlags=20, fft=True) # acf()は配列を返す ⇔  plot_acf()はグラフを返す
+# pacf_values = pacf(stationary_data, nlags=20, method="ywm")
+#
+# print("PACF_VALUE = \n", pacf_values)
+#
+# threshold = 1.96 / np.sqrt(len(stationary_data)) # 信頼区間(これより外に出ると偶然のノイズではない)
+# print("信頼区間", threshold)
+#
+# p_candidates = [lag for lag in range(1, 6) if abs(pacf_values[lag]) > threshold] 
+# q_candidates = [lag for lag in range(1, 6) if abs(acf_values[lag]) > threshold]
+# p = max(p_candidates) if p_candidates else 1
+# q = max(q_candidates) if q_candidates else 1
+#
+# print("\norder", (p, d, q))
+# print("seasonal_order", (1, D, 1, 96))
+#
+# y = df["OT"].asfreq("15min").interpolate(method="time")
+# exog_cols = ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL"] # 外部変数
+# exog = df[exog_cols].asfreq("15min").interpolate(method="time")
+#
+# # 訓練用8割, 答え合わせ用2割
+# train_size = int(len(y) * 0.8)
+# # 目的変数
+# y_train = y.iloc[:train_size] # :a = indexがaまで 
+# y_test = y.iloc[train_size:] # a: = indexがaから最後まで
+# exog_train = exog.iloc[:train_size]
+# exog_test = exog.iloc[:train_size:]
+#
+# # SIRIMAX()
+# model = SARIMAX(
+#     endog=y_train,
+#     exog=exog_train,
+#     order=(p, d, q), # 次数(自己回帰, 変化量の変化量,　移動平均)
+#     seasonal_order=(1, D, 1, 96,), # (一期前の変化量の重み, D, 一期前のノイズの重み, 周期)
+#     trend="c",
+#     enforce_stationarity=False,
+#     enforce_invertibility=False
+# )
+#
+# # model学習
+# # fit() = 微分, 二回微分を実行し最適された重みの確定値を出力
+# result = model.fit(disp=False, maxiter=200) # maxiter = 何回重み更新を行うか
+# print(result.summary()) # 最適化した重みのレポート
+#
+# # model評価
+# forecast_reuslt = result.get_forecast(steps=len(y_test), exog=exog_test) # 
+# y_pred_sarimax = forecast_reuslt.predicted_mean() # 確率分布で一番確率が高い予測値
+# conf_int = forecast_reuslt.conf_int(alpha=0.05) # 95%の確率でこの範囲に収まるという信頼区間(最大最小)
+#
 
-def estimate_d_by_adf(series: pd.Series, max_d: int = 2, alpha: float = 0.05) -> int:
-    current = series.dropna()
-    for d in range(max_d + 1):
-        result = adfuller(current, maxlag=None, regression="c", autolag="AIC")
-        p_value = result[1]
-        print(f"d={d}, p-value={p_value}")
-        if p_value < alpha:
-            return d
-        current = current.diff().dropna()
-    return max_d
+"""
+勾配ブースティング決定木(LightGBM)
+"""
+import lightgbm as lgb
+from lightgbm import LGBMRegressor
 
-# (1 - L)ᵈ
-d = estimate_d_by_adf(df["OT"], max_d=2, alpha=0.05) # 何回変化量をとったか(定常になるまで)
-s = 96
+# データ加工
+df_lgbm = df_feat.copy()
+df_lgbm["target_T"] = df_lgbm[target_col]
+df_lgbm = df_lgbm.dropna()
 
-# (1 - L⁹⁶)ᵒ
-seasonal_diff = df["OT"].diff(periods=s).dropna() # diff() = 一周期前のデータを引くと季節やトレンドの波を消える
-seasonal_p_value = adfuller(seasonal_diff, maxlag=None, regression="c", autolag="AIC")[1] # p値
-D = 1 if seasonal_p_value < 0.05 else 0
+y_lgbm = df_lgbm["target_T"]
+x_lgbm = df_lgbm.drop(columns=["target_T", target_col])
 
-# 定常化
-stationary_data = df["OT"].copy() 
-for _ in range(d):
-    stationary_data = stationary_data.diff()
-stationary_data = stationary_data.dropna() # 空白の行を削除
+split_idx = int(len(x_lgbm) * 0.8)
+x_train = x_lgbm.iloc[:split_idx]
+y_train = y_lgbm.iloc[:split_idx]
+x_test = x_lgbm.iloc[split_idx:]
+y_test = y_lgbm.iloc[split_idx:]
 
-# acf, pacf
-acf_values = acf(stationary_data, nlags=20, fft=True) # acf()は配列を返す ⇔  plot_acf()はグラフを返す
-pacf_values = pacf(stationary_data, nlags=20, method="ywm")
-
-print("PACF_VALUE = \n", pacf_values)
-
-threshold = 1.96 / np.sqrt(len(stationary_data)) # 信頼区間(これより外に出ると偶然のノイズではない)
-print("信頼区間", threshold)
-
-p_candidates = [lag for lag in range(1, 6) if abs(pacf_values[lag]) > threshold] 
-q_candidates = [lag for lag in range(1, 6) if abs(acf_values[lag]) > threshold]
-p = max(p_candidates) if p_candidates else 1
-q = max(q_candidates) if q_candidates else 1
-
-print("\norder", (p, d, q))
-print("seasonal_order", (1, D, 1, 96))
-
-y = df["OT"].asfreq("15min").interpolate(method="time")
-exog_cols = ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL"] # 外部変数
-exog = df[exog_cols].asfreq("15min").interpolate(method="time")
-
-# 訓練用8割, 答え合わせ用2割
-train_size = int(len(y) * 0.8)
-# 目的変数
-y_train = y.iloc[:train_size] # :a = indexがaまで 
-y_test = y.iloc[train_size:] # a: = indexがaから最後まで
-exog_train = exog.iloc[:train_size]
-exog_test = exog.iloc[:train_size:]
-
-# SIRIMAX()
-model = SARIMAX(
-    endog=y_train,
-    exog=exog_train,
-    order=(p, d, q), # 次数(自己回帰, 変化量の変化量,　移動平均)
-    seasonal_order=(1, D, 1, 96,), # (一期前の変化量の重み, D, 一期前のノイズの重み, 周期)
-    trend="c",
-    enforce_stationarity=False,
-    enforce_invertibility=False
+# model定義
+lgbm_model = LGBMRegressor(
+    objective="regression",
+    boosting_type="gbdt",
+    n_estimators=1000,
+    learning_rate=0.01, # 学習率
+    num_leaves=31,
+    max_depth=-1,
+    min_child_samples=20,
+    subsample=0.8,
+    subsample_freq=1,
+    colsample_bytree=0.8,
+    reg_alpha=0.0,
+    reg_lambda=1.0, # λ = 1 (正規化)
+    random_state=42,
+    n_jobs=-1
 )
 
-# model学習
-# fit() = 微分, 二回微分を実行し最適された重みの確定値を出力
-result = model.fit(disp=False, maxiter=200) # maxiter = 何回重み更新を行うか
-print(result.summary()) # 最適化した重みのレポート
+# model学習(得点ゲインの計算, 重み修正)
+lgbm_model.fit(
+    x_train,
+    y_train,
+    eval_set=[(x_test, y_test)],
+    eval_metric="l2", # 最小二乗法
+    callbacks=[ # ヒストグラム化して高速化
+        lgb.early_stopping(stopping_rounds=150, verbose=True), # 誤差が150回反復改善しなければ停止
+        lgb.log_evaluation(period=50)
+    ]
+)
 
-# model評価
-forecast_reuslt = result.get_forecast(steps=len(y_test), exog=exog_test) # 
-y_pred_sarimax = forecast_reuslt.predicted_mean() # 確率分布で一番確率が高い予測値
-conf_int = forecast_reuslt.conf_int(alpha=0.05) # 95%の確率でこの範囲に収まるという信頼区間(最大最小)
+# predict() = 各行の予測値配列を返す
+y_pred_lgbm = lgbm_model.predict(x_test, num_interation=lgbm_model.best_iteration_) # best_iteration_ = 最も誤差が小さかった時点
+
+print("\nbest_iterarion: ",lgbm_model.best_iteration_) # 1000本木を作って一番誤差が少なかったところ
+print("best_score_: ", lgbm_model.best_score_["valid_0"]["l2"]) # 二乗誤差の平均の最小(bedt_iterationの時)
+print("予測値: ", y_pred_lgbm)
+print("\ntrain_data_max: ", y_train.max())
+print("test_data_max: ", y_test.max())
+print("predict_values_max: ", y_pred_lgbm.max())
+print("\ntrain_data_min: ", y_train.min())
+print("test_data_min: ", y_test.min())
+print("predict_values_min: ", y_pred_lgbm.min())
+
+result = "succeed" if (
+             abs(y_pred_lgbm.max() - y_test.max()) < 5
+             and abs(y_pred_lgbm.min() - y_test.min()) < 5
+          )else "failed"
+print("\nresult: ", result)
 
